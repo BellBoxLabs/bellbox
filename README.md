@@ -10,13 +10,15 @@ BellBox relies on [Qiskit](https://github.com/Qiskit/qiskit) as its quantum simu
 
 ### What BellBox Does
 - **Bell State Construction**: Helpers to build all four 2-qubit Bell states (`|\Phi^+>`, `|\Phi^->`, `|\Psi^+>`, `|\Psi^->`).
+- **Measurement-Basis Support**: Prepares circuits for measurement in non-computational bases (`measure_in_basis`), applying unitary basis rotations for Pauli X, Y, and Z bases.
 - **Measurement Analysis**: Analyzes raw shot measurement counts (`analyze_counts`) to calculate total shots and normalized probability distributions with strict input validation.
+- **Two-Qubit Correlation Analysis**: Computes computational-basis correlation statistics (`calculate_correlations`) including outcome agreement/difference probabilities and normalized correlation coefficient $E = P(00) + P(11) - P(01) - P(10)$.
 - **Distribution Validation**: Validates whether a probability distribution is properly normalized within numerical tolerances.
 - **Circuit Inspection**: Provides basic structural validation helpers to check qubit counts and the presence of measurement gates.
 
 ### What BellBox Does NOT Do
 - Does **not** implement a quantum simulator from scratch (leverages Qiskit's `Statevector` and circuit capabilities).
-- Does **not** perform mathematical proof of circuit correctness (structural checks verify surface properties like qubit count, not algorithm correctness).
+- Does **not** perform mathematical proof of circuit correctness or quantum entanglement (correlation in a single measurement basis measures basis dependence, not entanglement).
 - Does **not** execute circuits on live physical quantum hardware backends.
 
 ---
@@ -94,7 +96,41 @@ print("Is normalized?", is_normalized(analysis["probabilities"]))
 ```
 
 
-### 3. Circuit Validation
+### 3. Two-Qubit Correlation Analysis
+
+```python
+from bellbox import calculate_correlations
+
+# Compute correlation coefficient and outcome statistics
+counts = {"00": 512, "11": 488}
+corrs = calculate_correlations(counts)
+
+print("Correlation E:", corrs["correlation"])
+# Output: Correlation E: 1.0
+
+print("Agree probability:", corrs["agree_probability"])
+# Output: Agree probability: 1.0
+```
+
+
+### 4. Measurement in Non-Computational Bases (X, Y, Z)
+
+```python
+from bellbox import phi_plus, measure_in_basis
+
+qc = phi_plus()
+
+# Prepare circuit for X-basis measurement (returns a new circuit by default)
+qc_x = measure_in_basis(qc, "X")
+print("X-basis circuit gates:", [inst.operation.name for inst in qc_x.data])
+# Output includes 'h' rotation gates followed by 'measure'
+
+# Measure qubit 0 in Y basis and qubit 1 in Z basis
+qc_yz = measure_in_basis(qc, "YZ")
+```
+
+
+### 5. Circuit Validation
 
 ```python
 from bellbox import phi_plus, validate_circuit

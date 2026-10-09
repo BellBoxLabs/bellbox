@@ -1,8 +1,15 @@
-"""Tests for measurement utilities and probability distribution normalization."""
-
 import pytest
+from qiskit import QuantumCircuit
+from qiskit.quantum_info import Statevector
 
-from bellbox.measurement import analyze_counts, counts_to_probabilities, is_normalized
+from bellbox.measurement import (
+    analyze_counts,
+    calculate_correlations,
+    counts_to_probabilities,
+    is_normalized,
+    measure_in_basis,
+)
+from bellbox.states import phi_plus
 
 
 class TestAnalyzeCounts:
@@ -208,3 +215,252 @@ class TestIsNormalized:
 
         with pytest.raises(TypeError, match="must be a number"):
             is_normalized({"00": "0.5", "11": "0.5"})  # type: ignore[dict-item]
+
+
+class TestCalculateCorrelations:
+    """Test suite for calculate_correlations."""
+
+    def test_perfect_positive_correlation(self):
+        """Test perfect positive correlation where all outcomes are agreeing (00, 11)."""
+        counts = {"00": 50, "11": 50}
+        res = calculate_correlations(counts)
+        assert res["total_shots"] == 100
+        assert res["agree_count"] == 100
+        assert res["agree_probability"] == pytest.approx(1.0)
+        assert res["differ_count"] == 0
+        assert res["differ_probability"] == pytest.approx(0.0)
+        assert res["correlation"] == pytest.approx(1.0)
+
+    def test_perfect_negative_correlation(self):
+        """Test perfect negative correlation where all outcomes are differing (01, 10)."""
+        counts = {"01": 50, "10": 50}
+        res = calculate_correlations(counts)
+        assert res["total_shots"] == 100
+        assert res["agree_count"] == 0
+        assert res["agree_probability"] == pytest.approx(0.0)
+        assert res["differ_count"] == 100
+        assert res["differ_probability"] == pytest.approx(1.0)
+        assert res["correlation"] == pytest.approx(-1.0)
+
+    def test_mixed_distribution_all_outcomes(self):
+        """Test a mixed distribution containing all four two-qubit outcomes."""
+        counts = {"00": 40, "01": 10, "10": 20, "11": 30}
+        res = calculate_correlations(counts)
+        assert res["total_shots"] == 100
+        assert res["agree_count"] == 70
+        assert res["agree_probability"] == pytest.approx(0.7)
+        assert res["differ_count"] == 30
+        assert res["differ_probability"] == pytest.approx(0.3)
+        assert res["correlation"] == pytest.approx(0.4)
+
+    def test_single_observed_outcome(self):
+        """Test distribution where only a single outcome is observed."""
+        counts = {"00": 100}
+        res = calculate_correlations(counts)
+        assert res["total_shots"] == 100
+        assert res["agree_count"] == 100
+        assert res["agree_probability"] == pytest.approx(1.0)
+        assert res["differ_count"] == 0
+        assert res["differ_probability"] == pytest.approx(0.0)
+        assert res["correlation"] == pytest.approx(1.0)
+
+    def test_unequal_counts(self):
+        """Test analysis with unequal counts across outcomes."""
+        counts = {"00": 10, "01": 30, "11": 60}
+        res = calculate_correlations(counts)
+        assert res["total_shots"] == 100
+        assert res["agree_count"] == 70
+        assert res["agree_probability"] == pytest.approx(0.7)
+        assert res["differ_count"] == 30
+        assert res["differ_probability"] == pytest.approx(0.3)
+        assert res["correlation"] == pytest.approx(0.4)
+
+    def test_missing_outcomes(self):
+        """Test that missing outcomes default to zero count without error."""
+        counts = {"11": 80}
+        res = calculate_correlations(counts)
+        assert res["total_shots"] == 80
+        assert res["agree_count"] == 80
+        assert res["agree_probability"] == pytest.approx(1.0)
+        assert res["differ_count"] == 0
+        assert res["differ_probability"] == pytest.approx(0.0)
+        assert res["correlation"] == pytest.approx(1.0)
+
+    def test_empty_and_zero_total_inputs(self):
+        """Test empty mapping and zero total shot inputs."""
+        empty_res = calculate_correlations({})
+        assert empty_res["total_shots"] == 0
+        assert empty_res["agree_count"] == 0
+        assert empty_res["agree_probability"] == pytest.approx(0.0)
+        assert empty_res["differ_count"] == 0
+        assert empty_res["differ_probability"] == pytest.approx(0.0)
+        assert empty_res["correlation"] == pytest.approx(0.0)
+
+        with pytest.raises(ValueError, match="Total measurement count is zero"):
+            calculate_correlations({"00": 0, "11": 0})
+
+    def test_invalid_bitstrings_and_count_values(self):
+        """Test exceptions raised for invalid bitstrings and count values."""
+        # Non-mapping input
+        with pytest.raises(TypeError, match="must be a dictionary-like mapping"):
+            calculate_correlations([("00", 50)])  # type: ignore[arg-type]
+
+        # Non-string key
+        with pytest.raises(TypeError, match="Bitstring key must be a string"):
+            calculate_correlations({0: 50})  # type: ignore[dict-item]
+
+        # Non-binary key characters
+        with pytest.raises(ValueError, match="Invalid bitstring key"):
+            calculate_correlations({"02": 50})
+
+        # Length other than 2
+        with pytest.raises(ValueError, match="must have length 2"):
+            calculate_correlations({"0": 50})
+
+        with pytest.raises(ValueError, match="must have length 2"):
+            calculate_correlations({"000": 50})
+
+        # Non-integer / boolean count
+        with pytest.raises(TypeError, match="must be an integer"):
+            calculate_correlations({"00": 5.5})  # type: ignore[dict-item]
+
+        with pytest.raises(TypeError, match="must be an integer"):
+            calculate_correlations({"00": True})  # type: ignore[dict-item]
+
+        # Negative count
+        with pytest.raises(ValueError, match="cannot be negative"):
+            calculate_correlations({"00": -10})
+
+
+class TestMeasureInBasis:
+    """Test suite for measure_in_basis."""
+
+    def test_z_basis_measurement(self):
+        """Test computational (Z) basis measurement adds no rotation gates."""
+        qc = phi_plus()
+        qc_meas = measure_in_basis(qc, "Z")
+        op_names = [inst.operation.name for inst in qc_meas.data]
+        assert op_names.count("h") == 1  # 1 from phi_plus, 0 added by Z-basis
+        assert "sdg" not in op_names
+        assert "measure" in op_names
+
+    def test_x_basis_measurement(self):
+        """Test X basis measurement applies Hadamard (h) gates before measurement."""
+        qc = phi_plus()
+        qc_meas = measure_in_basis(qc, "X")
+        op_names = [inst.operation.name for inst in qc_meas.data]
+        assert op_names.count("h") == 3  # 1 from phi_plus, 2 from X-basis
+        assert "sdg" not in op_names
+        assert "measure" in op_names
+
+    def test_y_basis_measurement(self):
+        """Test Y basis measurement applies sdg then h gates before measurement."""
+        qc = phi_plus()
+        qc_meas = measure_in_basis(qc, "Y")
+        op_names = [inst.operation.name for inst in qc_meas.data]
+        assert op_names.count("sdg") == 2
+        assert op_names.count("h") == 3  # 1 from phi_plus, 2 from Y-basis
+        assert "measure" in op_names
+
+    def test_per_qubit_basis_sequence(self):
+        """Test specifying different bases per qubit (e.g. XZ and ['Y', 'X'])."""
+        qc = phi_plus()
+        qc_xz = measure_in_basis(qc, "XZ")
+        ops_q0 = [
+            inst.operation.name
+            for inst in qc_xz.data
+            if 0 in [qc_xz.find_bit(q).index for q in inst.qubits]
+        ]
+        ops_q1 = [
+            inst.operation.name
+            for inst in qc_xz.data
+            if 1 in [qc_xz.find_bit(q).index for q in inst.qubits]
+        ]
+        assert ops_q0.count("h") == 2  # 1 from phi_plus + 1 from X-basis
+        assert ops_q1.count("h") == 0  # Z-basis adds no H
+
+        qc_yx = measure_in_basis(qc, ["Y", "X"])
+        assert "sdg" in [inst.operation.name for inst in qc_yx.data]
+
+    def test_circuit_preservation_and_mutation(self):
+        """Test default non-destructive copying (inplace=False) and mutation (inplace=True)."""
+        qc_orig = phi_plus()
+        num_gates_orig = len(qc_orig.data)
+
+        # Default inplace=False preserves original circuit
+        qc_copy = measure_in_basis(qc_orig, "X", inplace=False)
+        assert qc_copy is not qc_orig
+        assert len(qc_orig.data) == num_gates_orig
+        assert not any(inst.operation.name == "measure" for inst in qc_orig.data)
+        assert any(inst.operation.name == "measure" for inst in qc_copy.data)
+
+        # inplace=True mutates original circuit
+        qc_mutated = measure_in_basis(qc_orig, "X", inplace=True)
+        assert qc_mutated is qc_orig
+        assert any(inst.operation.name == "measure" for inst in qc_orig.data)
+
+    def test_deterministic_quantum_state_basis_rotations(self):
+        """Test deterministic quantum probabilities of |Phi+> under Z, X, Y basis rotations."""
+        qc = phi_plus()
+
+        # Z-basis statevector probabilities before measure gate
+        sv_z = Statevector(qc)
+        probs_z = sv_z.probabilities_dict()
+        assert probs_z["00"] == pytest.approx(0.5)
+        assert probs_z["11"] == pytest.approx(0.5)
+
+        # X-basis rotation H x H on |Phi+> leaves state invariant: 0.5 |00> + 0.5 |11>
+        qc_x = qc.copy()
+        qc_x.h(0)
+        qc_x.h(1)
+        probs_x = Statevector(qc_x).probabilities_dict()
+        assert probs_x["00"] == pytest.approx(0.5)
+        assert probs_x["11"] == pytest.approx(0.5)
+
+        # Y-basis rotation (H S^dag) x (H S^dag) on |Phi+> yields |Psi+>: 0.5 |01> + 0.5 |10>
+        qc_y = qc.copy()
+        qc_y.sdg(0)
+        qc_y.h(0)
+        qc_y.sdg(1)
+        qc_y.h(1)
+        probs_y = Statevector(qc_y).probabilities_dict()
+        assert probs_y["01"] == pytest.approx(0.5)
+        assert probs_y["10"] == pytest.approx(0.5)
+
+    def test_invalid_inputs_raise_exceptions(self):
+        """Test invalid arguments raise appropriate TypeError or ValueError exceptions."""
+        qc = phi_plus()
+
+        # Non-QuantumCircuit input
+        with pytest.raises(TypeError, match="Expected a Qiskit QuantumCircuit"):
+            measure_in_basis("not_a_circuit")  # type: ignore[arg-type]
+
+        # Non-boolean inplace
+        with pytest.raises(TypeError, match="Expected bool for inplace"):
+            measure_in_basis(qc, "X", inplace="yes")  # type: ignore[arg-type]
+
+        # Invalid basis character
+        with pytest.raises(ValueError, match="Invalid measurement basis"):
+            measure_in_basis(qc, "W")
+
+        # Invalid basis length
+        with pytest.raises(ValueError, match="Invalid basis string length"):
+            measure_in_basis(qc, "XXX")
+
+        with pytest.raises(ValueError, match="Basis sequence length"):
+            measure_in_basis(qc, ["X"])
+
+        # Non-string in basis sequence
+        with pytest.raises(TypeError, match="Basis element must be a string"):
+            measure_in_basis(qc, ["X", 123])  # type: ignore[list-item]
+
+        # Circuit with 0 qubits
+        with pytest.raises(ValueError, match="0 qubits"):
+            measure_in_basis(QuantumCircuit(0))
+
+        # Circuit already containing measurement operations
+        qc_measured = measure_in_basis(qc, "Z")
+        with pytest.raises(ValueError, match="already contains measurement operations"):
+            measure_in_basis(qc_measured, "X")
+
+

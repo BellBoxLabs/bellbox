@@ -1,6 +1,12 @@
 """BellBox: Quantum circuit experiments and educational tools."""
 
-from bellbox.measurement import analyze_counts, counts_to_probabilities, is_normalized
+from bellbox.measurement import (
+    analyze_counts,
+    calculate_correlations,
+    counts_to_probabilities,
+    is_normalized,
+    measure_in_basis,
+)
 from bellbox.states import phi_minus, phi_plus, psi_minus, psi_plus
 from bellbox.validation import (
     has_measurements,
@@ -16,10 +22,13 @@ __all__ = [
     "psi_plus",
     "psi_minus",
     "analyze_counts",
+    "calculate_correlations",
     "counts_to_probabilities",
     "is_normalized",
+    "measure_in_basis",
     "validate_qubit_count",
     "has_measurements",
     "validate_circuit",
 ]
+
 
