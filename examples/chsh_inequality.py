@@ -11,6 +11,7 @@ import math
 import numpy as np
 
 from bellbox import (
+    TSIRELSON_CHSH_BOUND,
     calculate_chsh,
     calculate_correlations,
     phi_plus,
@@ -42,13 +43,15 @@ def run_mathematical_example() -> None:
 
 def run_simulated_quantum_experiment() -> None:
     print("--------------------------------------------------")
-    print(" 2. Simulated Quantum Experiment (|Phi+>)         ")
+    print(" 2. Quantum Circuit Experiment for |Phi+>         ")
     print("--------------------------------------------------")
-    print("Optimal CHSH Measurement Angles (X-Z plane):")
-    print("  Alice: a = 0 rad (Z basis),  a' = pi/2 rad (X basis)")
-    print("  Bob:   b = pi/4 rad (45 deg), b' = -pi/4 rad (-45 deg)\n")
+    print("Measurement Convention:  E = P(00) + P(11) - P(01) - P(10)")
+    print("CHSH Sign Convention:    S = E(a,b) + E(a,b') + E(a',b) - E(a',b')\n")
+    print("Optimal Measurement Angles (X-Z plane):")
+    print("  Alice (qubit 0): a  = 0 rad (0 deg),   a' = pi/2 rad (90 deg)")
+    print("  Bob   (qubit 1): b  = pi/4 rad (45 deg), b' = -pi/4 rad (-45 deg)\n")
 
-    # Optimal measurement angles (in radians)
+    # Optimal measurement setting pairs
     settings = [
         ("e_ab", "a", "b", 0.0, np.pi / 4.0),
         ("e_ab_prime", "a", "b'", 0.0, -np.pi / 4.0),
@@ -56,49 +59,66 @@ def run_simulated_quantum_experiment() -> None:
         ("e_a_prime_b_prime", "a'", "b'", np.pi / 2.0, -np.pi / 4.0),
     ]
 
-    computed_correlations: dict[str, float] = {}
+    exact_correlations: dict[str, float] = {}
+    sampled_correlations: dict[str, float] = {}
+
+    from qiskit.quantum_info import Statevector
 
     for key_name, name_a, name_b, theta_a, theta_b in settings:
-        # Construct |Phi+> state circuit
+        # 1. Construct |Phi+> state circuit
         qc = phi_plus()
 
-        # Apply basis rotation gates prior to computational Z-measurement:
-        # To measure along angle theta in X-Z plane, apply Ry(-theta) before measurement.
+        # Apply measurement basis rotation gates in X-Z plane:
+        # Rotating measurement basis by theta requires applying Ry(-theta) prior to Z-measurement.
         if theta_a != 0.0:
             qc.ry(-theta_a, 0)
         if theta_b != 0.0:
             qc.ry(-theta_b, 1)
 
-        qc.measure_all()
+        # 2. Exact Quantum Probabilities via Statevector (no shot truncation)
+        probs = Statevector(qc).probabilities_dict()
+        p00 = probs.get("00", 0.0)
+        p11 = probs.get("11", 0.0)
+        p01 = probs.get("01", 0.0)
+        p10 = probs.get("10", 0.0)
+        e_exact = (p00 + p11) - (p01 + p10)
+        exact_correlations[key_name] = e_exact
 
-        # Compute theoretical probability distribution for ideal simulation
-        from qiskit.quantum_info import Statevector
+        # 3. Finite-Shot Sampling Simulation (10,000 shots)
+        shot_counts = {k: int(round(v * 10000)) for k, v in probs.items() if v > 0}
+        corr_sampled_info = calculate_correlations(shot_counts)
+        e_sampled = corr_sampled_info["correlation"]
+        sampled_correlations[key_name] = e_sampled
 
-        # Remove measure gates for statevector inspection
-        qc_rot = qc.copy()
-        qc_rot.remove_final_measurements(inplace=True)
-        probs = Statevector(qc_rot).probabilities_dict()
+        print(f"Setting ({name_a}, {name_b}): theta_A={theta_a:.2f}, theta_B={theta_b:+.2f}")
+        print(f"  Exact Probabilities: P(00)={p00:.4f}, P(11)={p11:.4f}, "
+              f"P(01)={p01:.4f}, P(10)={p10:.4f}")
+        print(f"  Exact E = {e_exact:+.6f} | Sampled (10k shots) E = {e_sampled:+.6f}\n")
 
-        # Convert probabilities to shot counts (10,000 shots simulation)
-        shot_counts = {k: int(v * 10000) for k, v in probs.items() if v > 0}
-        corr_info = calculate_correlations(shot_counts)
-        corr_val = corr_info["correlation"]
-
-        computed_correlations[key_name] = corr_val
-
-        print(f"Setting ({name_a}, {name_b}): theta_A={theta_a:.2f}, theta_B={theta_b:.2f} "
-              f"-> Correlation E = {corr_val:+.4f}")
-
-    # Pass four simulated correlations into calculate_chsh
-    chsh_res = calculate_chsh(
-        computed_correlations["e_ab"],
-        computed_correlations["e_ab_prime"],
-        computed_correlations["e_a_prime_b"],
-        computed_correlations["e_a_prime_b_prime"],
+    # Evaluate CHSH S parameters
+    exact_chsh = calculate_chsh(
+        exact_correlations["e_ab"],
+        exact_correlations["e_ab_prime"],
+        exact_correlations["e_a_prime_b"],
+        exact_correlations["e_a_prime_b_prime"],
     )
 
-    print(f"\nSimulated CHSH Parameter S: {chsh_res['s_value']:.4f}")
-    print(f"Violates Classical Bound (|S| > 2.0)? {chsh_res['violates_classical_bound']}\n")
+    sampled_chsh = calculate_chsh(
+        sampled_correlations["e_ab"],
+        sampled_correlations["e_ab_prime"],
+        sampled_correlations["e_a_prime_b"],
+        sampled_correlations["e_a_prime_b_prime"],
+    )
+
+    print("--------------------------------------------------")
+    print(" Summary of CHSH Results                          ")
+    print("--------------------------------------------------")
+    print(f"Exact Quantum CHSH Parameter S: {exact_chsh['s_value']:.12f}")
+    print(f"  Tsirelson Bound (2*sqrt(2)):   {TSIRELSON_CHSH_BOUND:.12f}")
+    is_exact_match = abs(exact_chsh['s_value'] - TSIRELSON_CHSH_BOUND) < 1e-12
+    print(f"  Exact Match?                   {is_exact_match}")
+    print(f"Sampled Quantum CHSH Parameter S:{sampled_chsh['s_value']:.6f}")
+    print(f"  Violates Classical Bound (|S|>2)? {exact_chsh['violates_classical_bound']}\n")
 
 
 def print_scientific_disclaimer() -> None:

@@ -3,7 +3,9 @@
 import math
 
 import pytest
+from qiskit.quantum_info import Statevector
 
+from bellbox import phi_plus
 from bellbox.chsh import (
     CLASSICAL_CHSH_BOUND,
     TSIRELSON_CHSH_BOUND,
@@ -106,3 +108,72 @@ class TestCalculateCHSH:
         """Test that negative tolerance atol raises ValueError."""
         with pytest.raises(ValueError, match="cannot be negative"):
             calculate_chsh(0.5, 0.5, 0.5, 0.5, atol=-1e-5)
+
+    def test_individual_phi_plus_correlations_and_chsh_derivation(self):
+        """Independently derive and check each of the 4 individual correlations for |Phi+>."""
+        inv_sqrt2 = 1.0 / math.sqrt(2.0)
+
+        # Theoretical quantum expectation for |Phi+> measured at angles (theta_A, theta_B):
+        # E(theta_A, theta_B) = cos(theta_A - theta_B)
+        # 1. E(a, b)   = cos(0 - pi/4)  = cos(-pi/4) = +1/sqrt(2)
+        # 2. E(a, b')  = cos(0 - -pi/4) = cos(pi/4)  = +1/sqrt(2)
+        # 3. E(a', b)  = cos(pi/2 - pi/4) = cos(pi/4) = +1/sqrt(2)
+        # 4. E(a', b') = cos(pi/2 - -pi/4) = cos(3pi/4) = -1/sqrt(2)
+        e_ab = math.cos(0.0 - math.pi / 4.0)
+        e_ab_prime = math.cos(0.0 - (-math.pi / 4.0))
+        e_a_prime_b = math.cos(math.pi / 2.0 - math.pi / 4.0)
+        e_a_prime_b_prime = math.cos(math.pi / 2.0 - (-math.pi / 4.0))
+
+        assert e_ab == pytest.approx(inv_sqrt2)
+        assert e_ab_prime == pytest.approx(inv_sqrt2)
+        assert e_a_prime_b == pytest.approx(inv_sqrt2)
+        assert e_a_prime_b_prime == pytest.approx(-inv_sqrt2)
+
+        res = calculate_chsh(e_ab, e_ab_prime, e_a_prime_b, e_a_prime_b_prime)
+        assert res["s_value"] == pytest.approx(TSIRELSON_CHSH_BOUND)
+        assert res["abs_s_value"] == pytest.approx(TSIRELSON_CHSH_BOUND)
+
+    def test_qiskit_statevector_rotation_exact_quantum_correlations(self):
+        """Verify Qiskit statevector basis rotations match exact analytical quantum correlations."""
+        angles = [
+            (0.0, math.pi / 4.0, 1.0 / math.sqrt(2.0)),
+            (0.0, -math.pi / 4.0, 1.0 / math.sqrt(2.0)),
+            (math.pi / 2.0, math.pi / 4.0, 1.0 / math.sqrt(2.0)),
+            (math.pi / 2.0, -math.pi / 4.0, -1.0 / math.sqrt(2.0)),
+        ]
+
+        computed_corrs = []
+        for ta, tb, expected_e in angles:
+            qc = phi_plus()
+            if ta != 0.0:
+                qc.ry(-ta, 0)
+            if tb != 0.0:
+                qc.ry(-tb, 1)
+
+            probs = Statevector(qc).probabilities_dict()
+            # Calculate correlation E = P(00)+P(11)-P(01)-P(10) directly from exact probabilities
+            p00 = probs.get("00", 0.0)
+            p11 = probs.get("11", 0.0)
+            p01 = probs.get("01", 0.0)
+            p10 = probs.get("10", 0.0)
+            e_val = (p00 + p11) - (p01 + p10)
+
+            assert e_val == pytest.approx(expected_e, abs=1e-12)
+            computed_corrs.append(e_val)
+
+        chsh_res = calculate_chsh(*computed_corrs)
+        assert chsh_res["s_value"] == pytest.approx(TSIRELSON_CHSH_BOUND, abs=1e-12)
+
+    def test_setting_changes_and_sign_flips(self):
+        """Verify CHSH parameter behavior when setting signs or order are varied."""
+        val = 1.0 / math.sqrt(2.0)
+        # Standard CHSH order: E(a,b) + E(a,b') + E(a',b) - E(a',b') = +2*sqrt(2)
+        res_pos = calculate_chsh(val, val, val, -val)
+        assert res_pos["s_value"] == pytest.approx(TSIRELSON_CHSH_BOUND)
+        assert res_pos["abs_s_value"] == pytest.approx(TSIRELSON_CHSH_BOUND)
+
+        # Flipped signs: E(a,b)=-val, E(a,b')=-val, E(a',b)=-val, E(a',b')=+val -> S = -2*sqrt(2)
+        res_neg = calculate_chsh(-val, -val, -val, val)
+        assert res_neg["s_value"] == pytest.approx(-TSIRELSON_CHSH_BOUND)
+        assert res_neg["abs_s_value"] == pytest.approx(TSIRELSON_CHSH_BOUND)
+        assert res_neg["violates_classical_bound"] is True
