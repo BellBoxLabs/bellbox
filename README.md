@@ -10,7 +10,7 @@ BellBox relies on [Qiskit](https://github.com/Qiskit/qiskit) as its quantum simu
 
 ### What BellBox Does
 - **Bell State Construction**: Helpers to build all four 2-qubit Bell states (`|\Phi^+>`, `|\Phi^->`, `|\Psi^+>`, `|\Psi^->`).
-- **Measurement Analysis**: Converts raw shot measurement counts into normalized probability distributions with strict input validation.
+- **Measurement Analysis**: Analyzes raw shot measurement counts (`analyze_counts`) to calculate total shots and normalized probability distributions with strict input validation.
 - **Distribution Validation**: Validates whether a probability distribution is properly normalized within numerical tolerances.
 - **Circuit Inspection**: Provides basic structural validation helpers to check qubit counts and the presence of measurement gates.
 
@@ -73,22 +73,26 @@ sv_psi = Statevector(qc_psi)
 print("|\Psi^-> Statevector:", sv_psi.data)
 ```
 
-### 2. Measurement Count Normalization and Validation
+### 2. Measurement Count Analysis and Validation
 
 ```python
-from bellbox import counts_to_probabilities, is_normalized
+from bellbox import analyze_counts, is_normalized
 
-# Conversion of raw shot counts to normalized probabilities
+# Analyze raw measurement shot counts
 counts = {"00": 512, "11": 488}
-probs = counts_to_probabilities(counts)
+analysis = analyze_counts(counts)
 
-print("Normalized probabilities:", probs)
-# Output: {'00': 0.512, '11': 0.488}
+print("Total shots:", analysis["total_shots"])
+# Output: Total shots: 1000
+
+print("Normalized probabilities:", analysis["probabilities"])
+# Output: Normalized probabilities: {'00': 0.512, '11': 0.488}
 
 # Validate distribution normalization
-print("Is normalized?", is_normalized(probs))
+print("Is normalized?", is_normalized(analysis["probabilities"]))
 # Output: True
 ```
+
 
 ### 3. Circuit Validation
 

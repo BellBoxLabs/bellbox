@@ -2,7 +2,95 @@
 
 import pytest
 
-from bellbox.measurement import counts_to_probabilities, is_normalized
+from bellbox.measurement import analyze_counts, counts_to_probabilities, is_normalized
+
+
+class TestAnalyzeCounts:
+    """Test suite for analyze_counts."""
+
+    def test_normal_distribution(self):
+        """Test analysis of a typical measurement count distribution."""
+        counts = {"00": 510, "11": 490}
+        res = analyze_counts(counts)
+        assert res["total_shots"] == 1000
+        assert res["probabilities"]["00"] == pytest.approx(0.51)
+        assert res["probabilities"]["11"] == pytest.approx(0.49)
+        assert is_normalized(res["probabilities"])
+
+    def test_single_outcome(self):
+        """Test analysis when all measurement shots yield a single outcome."""
+        counts = {"00": 100}
+        res = analyze_counts(counts)
+        assert res["total_shots"] == 100
+        assert res["probabilities"] == {"00": 1.0}
+        assert is_normalized(res["probabilities"])
+
+    def test_multiple_outcomes_different_probabilities(self):
+        """Test analysis with multiple outcomes, unequal counts, and key sorting."""
+        counts = {"11": 300, "00": 100, "01": 600}
+        res = analyze_counts(counts)
+        assert res["total_shots"] == 1000
+        assert list(res["probabilities"].keys()) == ["00", "01", "11"]
+        assert res["probabilities"]["00"] == pytest.approx(0.1)
+        assert res["probabilities"]["01"] == pytest.approx(0.6)
+        assert res["probabilities"]["11"] == pytest.approx(0.3)
+        assert is_normalized(res["probabilities"])
+
+    def test_empty_counts(self):
+        """Test that empty dictionary returns total_shots 0 and empty probabilities."""
+        res = analyze_counts({})
+        assert res == {"total_shots": 0, "probabilities": {}}
+
+    def test_individual_zero_count_with_non_zero_total(self):
+        """Test when individual outcomes have 0 counts but total shots > 0."""
+        counts = {"00": 100, "11": 0}
+        res = analyze_counts(counts)
+        assert res["total_shots"] == 100
+        assert res["probabilities"]["00"] == pytest.approx(1.0)
+        assert res["probabilities"]["11"] == pytest.approx(0.0)
+
+    def test_zero_total_counts_raises_value_error(self):
+        """Test that counts summing to zero in a non-empty mapping raise ValueError."""
+        with pytest.raises(ValueError, match="Total measurement count is zero"):
+            analyze_counts({"00": 0, "11": 0})
+
+    def test_negative_counts_raises_value_error(self):
+        """Test that negative count values raise ValueError."""
+        with pytest.raises(ValueError, match="cannot be negative"):
+            analyze_counts({"00": -10, "11": 100})
+
+    def test_float_counts_raises_type_error(self):
+        """Test that float count values raise TypeError."""
+        with pytest.raises(TypeError, match="must be an integer"):
+            analyze_counts({"00": 5.5, "11": 10})  # type: ignore[dict-item]
+
+    def test_boolean_counts_raises_type_error(self):
+        """Test that boolean count values raise TypeError."""
+        with pytest.raises(TypeError, match="must be an integer"):
+            analyze_counts({"00": True, "11": False})  # type: ignore[dict-item]
+
+    def test_non_string_key_raises_type_error(self):
+        """Test that non-string bitstring keys raise TypeError."""
+        with pytest.raises(TypeError, match="Bitstring key must be a string"):
+            analyze_counts({0: 50, 1: 50})  # type: ignore[dict-item]
+
+    def test_invalid_bitstring_chars_raises_value_error(self):
+        """Test that non-binary bitstring characters raise ValueError."""
+        with pytest.raises(ValueError, match="Invalid bitstring key"):
+            analyze_counts({"02": 50, "11": 50})
+
+        with pytest.raises(ValueError, match="Invalid bitstring key"):
+            analyze_counts({"abc": 50})
+
+    def test_inconsistent_bitstring_lengths_raises_value_error(self):
+        """Test that bitstring keys of differing lengths raise ValueError."""
+        with pytest.raises(ValueError, match="Inconsistent bitstring length"):
+            analyze_counts({"00": 50, "111": 50})
+
+    def test_non_mapping_input_raises_type_error(self):
+        """Test that non-mapping input raises TypeError."""
+        with pytest.raises(TypeError, match="must be a dictionary-like mapping"):
+            analyze_counts([("00", 50), ("11", 50)])  # type: ignore[arg-type]
 
 
 class TestCountsToProbabilities:

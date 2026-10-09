@@ -10,7 +10,7 @@ This script demonstrates:
 from qiskit.quantum_info import Statevector
 
 from bellbox import (
-    counts_to_probabilities,
+    analyze_counts,
     is_normalized,
     phi_minus,
     phi_plus,
@@ -48,17 +48,18 @@ def main() -> None:
         print()
 
     print("--------------------------------------------------")
-    print(" Converting Measurement Counts to Probabilities  ")
+    print(" Analyzing Measurement Counts & Probabilities    ")
     print("--------------------------------------------------")
 
     # Example shot counts from a measurement experiment
     simulated_counts = {"00": 512, "11": 488}
     print(f"Raw measurement counts: {simulated_counts}")
 
-    prob_dist = counts_to_probabilities(simulated_counts)
-    print(f"Normalized probabilities: {prob_dist}")
+    analysis = analyze_counts(simulated_counts)
+    print(f"Total shots analyzed: {analysis['total_shots']}")
+    print(f"Normalized probabilities: {analysis['probabilities']}")
 
-    normalized_check = is_normalized(prob_dist)
+    normalized_check = is_normalized(analysis["probabilities"])
     print(f"Is distribution normalized? {normalized_check}")
 
     print("\nDemonstration complete!")
