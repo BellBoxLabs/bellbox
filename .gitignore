@@ -46,3 +46,6 @@ htmlcov/
 .idea/
 *.swp
 *.swo
+
+#random files
+commit.txt
