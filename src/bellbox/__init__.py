@@ -1,5 +1,10 @@
 """BellBox: Quantum circuit experiments and educational tools."""
 
+from bellbox.chsh import (
+    CLASSICAL_CHSH_BOUND,
+    TSIRELSON_CHSH_BOUND,
+    calculate_chsh,
+)
 from bellbox.measurement import (
     analyze_counts,
     calculate_correlations,
@@ -26,6 +31,9 @@ __all__ = [
     "counts_to_probabilities",
     "is_normalized",
     "measure_in_basis",
+    "calculate_chsh",
+    "CLASSICAL_CHSH_BOUND",
+    "TSIRELSON_CHSH_BOUND",
     "validate_qubit_count",
     "has_measurements",
     "validate_circuit",

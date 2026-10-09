@@ -13,6 +13,7 @@ BellBox relies on [Qiskit](https://github.com/Qiskit/qiskit) as its quantum simu
 - **Measurement-Basis Support**: Prepares circuits for measurement in non-computational bases (`measure_in_basis`), applying unitary basis rotations for Pauli X, Y, and Z bases.
 - **Measurement Analysis**: Analyzes raw shot measurement counts (`analyze_counts`) to calculate total shots and normalized probability distributions with strict input validation.
 - **Two-Qubit Correlation Analysis**: Computes computational-basis correlation statistics (`calculate_correlations`) including outcome agreement/difference probabilities and normalized correlation coefficient $E = P(00) + P(11) - P(01) - P(10)$.
+- **CHSH Bell Inequality Analysis**: Computes the CHSH statistic $S = E(a,b) + E(a,b') + E(a',b) - E(a',b')$ via `calculate_chsh` and evaluates violations against classical ($|S| \le 2$) and Tsirelson ($|S| \le 2\sqrt{2}$) bounds.
 - **Distribution Validation**: Validates whether a probability distribution is properly normalized within numerical tolerances.
 - **Circuit Inspection**: Provides basic structural validation helpers to check qubit counts and the presence of measurement gates.
 
@@ -130,7 +131,25 @@ qc_yz = measure_in_basis(qc, "YZ")
 ```
 
 
-### 5. Circuit Validation
+### 5. CHSH Bell Inequality Analysis
+
+```python
+import math
+from bellbox import calculate_chsh
+
+# Evaluate CHSH parameter S from 4 correlation values (e.g. 1/sqrt(2) ~ 0.7071)
+val = 1.0 / math.sqrt(2.0)
+chsh = calculate_chsh(val, val, val, -val)
+
+print("S value:", chsh["s_value"])
+# Output: S value: 2.8284271247461903 (Tsirelson bound 2*sqrt(2))
+
+print("Violates classical bound (|S| > 2.0)?", chsh["violates_classical_bound"])
+# Output: True
+```
+
+
+### 6. Circuit Validation
 
 ```python
 from bellbox import phi_plus, validate_circuit
@@ -145,9 +164,10 @@ print("Validation result:", res)
 
 ## Running Examples, Tests, and Lint Checks
 
-### Run the Bell State Example Script
+### Run Example Scripts
 ```bash
 python examples/bell_states.py
+python examples/chsh_inequality.py
 ```
 
 ### Run the Test Suite
