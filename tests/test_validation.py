@@ -126,3 +126,25 @@ class TestValidateCircuit:
         """Test invalid circuit argument raises TypeError."""
         with pytest.raises(TypeError, match="Expected a Qiskit QuantumCircuit"):
             validate_circuit(None)  # type: ignore[arg-type]
+
+    def test_validate_circuit_without_measurements_required_with_measurements(self):
+        """Test require_measurements=False passes when measurements are present."""
+        qc = phi_plus()
+        qc.measure_all()
+        result = validate_circuit(qc, expected_qubits=2, require_measurements=False)
+        assert result == {
+            "qubit_count_valid": True,
+            "has_measurements": True,
+            "measurements_valid": True,
+            "is_valid": True,
+        }
+
+    @pytest.mark.parametrize(
+        "invalid_value",
+        ["true", "false", 0, 1, None, [True], {"require": True}, object()],
+    )
+    def test_validate_circuit_invalid_require_measurements_raises(self, invalid_value):
+        """Test non-boolean require_measurements values raise TypeError."""
+        qc = QuantumCircuit(2)
+        with pytest.raises(TypeError, match="require_measurements must be a bool"):
+            validate_circuit(qc, require_measurements=invalid_value)  # type: ignore[arg-type]

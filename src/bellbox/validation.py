@@ -91,6 +91,9 @@ def validate_circuit(
     if not isinstance(circuit, QuantumCircuit):
         raise TypeError(f"Expected a Qiskit QuantumCircuit, got {type(circuit).__name__}.")
 
+    if not isinstance(require_measurements, bool):
+        raise TypeError("require_measurements must be a bool")
+
     if expected_qubits is not None:
         qubit_count_ok = validate_qubit_count(circuit, expected_qubits)
     else:
