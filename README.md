@@ -250,7 +250,7 @@ Computes the CHSH statistic $S = E(a,b) + E(a,b') + E(a',b) - E(a',b')$ and eval
 
 **Raises**:
 - `TypeError`: If any correlation or `atol` is not a real number or is a boolean.
-- `ValueError`: If `atol` is negative, or if any correlation is NaN, infinite, or outside $[-1, 1]$.
+- `ValueError`: If `atol` is non-finite or negative, or if any correlation is NaN, infinite, or outside $[-1, 1]$.
 
 #### Constants
 - `CLASSICAL_CHSH_BOUND` (`float = 2.0`)

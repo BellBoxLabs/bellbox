@@ -58,11 +58,14 @@ def calculate_chsh(
 
     Raises:
         TypeError: If any input correlation or atol is not a real number (or is a boolean).
-        ValueError: If atol is negative, or if any correlation value is NaN, infinite, or outside
-            the range [-1, 1].
+        ValueError: If atol is non-finite or negative, or if any correlation value is NaN, infinite,
+            or outside the range [-1, 1].
     """
     if isinstance(atol, bool) or not isinstance(atol, (int, float)):
         raise TypeError(f"Tolerance atol must be a real number, got {type(atol).__name__}.")
+
+    if not math.isfinite(atol):
+        raise ValueError(f"Tolerance atol must be finite, got {atol}.")
 
     if atol < 0:
         raise ValueError(f"Tolerance atol cannot be negative, got {atol}.")
