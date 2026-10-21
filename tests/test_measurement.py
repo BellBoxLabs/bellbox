@@ -344,6 +344,42 @@ class TestMeasureInBasis:
         assert "sdg" not in op_names
         assert "measure" in op_names
 
+    def test_measurement_adds_classical_bits_when_none_exist(self):
+        """A circuit without classical bits gets a register for all qubit measurements."""
+        qc = QuantumCircuit(2)
+
+        qc_meas = measure_in_basis(qc)
+
+        assert qc_meas.num_clbits == qc.num_qubits
+        measurements = [inst for inst in qc_meas.data if inst.operation.name == "measure"]
+        assert len(measurements) == qc.num_qubits
+        assert {
+            (qc_meas.find_bit(inst.qubits[0]).index, qc_meas.find_bit(inst.clbits[0]).index)
+            for inst in measurements
+        } == {(0, 0), (1, 1)}
+
+    def test_measurement_rejects_too_few_existing_classical_bits(self):
+        """Existing classical bits must be sufficient to measure every qubit."""
+        qc = QuantumCircuit(2, 1)
+
+        with pytest.raises(ValueError, match="1 classical bit for 2 qubits"):
+            measure_in_basis(qc, inplace=True)
+
+        assert not any(inst.operation.name == "measure" for inst in qc.data)
+
+    def test_measurement_uses_qubit_indices_with_extra_classical_bits(self):
+        """Extra classical bits are allowed and left unused by the identity mapping."""
+        qc = QuantumCircuit(2, 3)
+
+        qc_meas = measure_in_basis(qc)
+
+        measurements = [inst for inst in qc_meas.data if inst.operation.name == "measure"]
+        assert len(measurements) == qc.num_qubits
+        assert {
+            (qc_meas.find_bit(inst.qubits[0]).index, qc_meas.find_bit(inst.clbits[0]).index)
+            for inst in measurements
+        } == {(0, 0), (1, 1)}
+
     def test_x_basis_measurement(self):
         """Test X basis measurement applies Hadamard (h) gates before measurement."""
         qc = phi_plus()
