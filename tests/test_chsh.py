@@ -109,6 +109,12 @@ class TestCalculateCHSH:
         with pytest.raises(ValueError, match="cannot be negative"):
             calculate_chsh(0.5, 0.5, 0.5, 0.5, atol=-1e-5)
 
+    @pytest.mark.parametrize("bad_atol", [float("nan"), float("inf"), float("-inf")])
+    def test_non_finite_atol_raises_value_error(self, bad_atol):
+        """Test that NaN and infinite tolerances raise ValueError."""
+        with pytest.raises(ValueError, match="must be finite"):
+            calculate_chsh(0.5, 0.5, 0.5, 0.5, atol=bad_atol)
+
     def test_individual_phi_plus_correlations_and_chsh_derivation(self):
         """Independently derive and check each of the 4 individual correlations for |Phi+>."""
         inv_sqrt2 = 1.0 / math.sqrt(2.0)

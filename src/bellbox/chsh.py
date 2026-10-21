@@ -64,6 +64,9 @@ def calculate_chsh(
     if isinstance(atol, bool) or not isinstance(atol, (int, float)):
         raise TypeError(f"Tolerance atol must be a real number, got {type(atol).__name__}.")
 
+    if not math.isfinite(float(atol)):
+        raise ValueError(f"Tolerance atol must be finite, got {atol}.")
+
     if atol < 0:
         raise ValueError(f"Tolerance atol cannot be negative, got {atol}.")
 
