@@ -303,7 +303,8 @@ def measure_in_basis(
         TypeError: If `circuit` is not a QuantumCircuit, `basis` is of invalid type, or `inplace`
             is not a boolean.
         ValueError: If `circuit` has 0 qubits, already contains measurement operations, if basis
-            sequence length does not match qubit count, or if an unrecognized basis name is given.
+            sequence length does not match qubit count, if existing classical bits are insufficient
+            for the qubits, or if an unrecognized basis name is given.
 
     Note:
         Applying basis-change gates does not permanently alter the physical quantum state prior to
@@ -323,6 +324,15 @@ def measure_in_basis(
         raise ValueError(
             "Circuit already contains measurement operations. Basis measurements must be added "
             "before any measurement operations."
+        )
+
+    if 0 < circuit.num_clbits < circuit.num_qubits:
+        classical_bit_label = "classical bit" if circuit.num_clbits == 1 else "classical bits"
+        raise ValueError(
+            f"Circuit has {circuit.num_clbits} {classical_bit_label} for {circuit.num_qubits} "
+            "qubits. "
+            "Provide at least one classical bit per qubit, or remove the existing classical bits "
+            "to let measure_in_basis create a measurement register."
         )
 
     bases: tuple[str, ...]

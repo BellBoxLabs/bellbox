@@ -165,9 +165,13 @@ Applies unitary basis-change gates to specified qubits immediately before adding
 
 **Returns**: `QuantumCircuit` containing measurement operations.
 
+**Classical-bit policy**: If the circuit has no classical bits, a register is created for all qubits.
+If it already has classical bits, it must have at least as many classical bits as qubits; qubit
+`i` is measured into classical bit `i`, and any additional classical bits are left unused.
+
 **Raises**:
 - `TypeError`: If `circuit` is not a `QuantumCircuit`, `basis` is invalid type, or `inplace` is not a boolean.
-- `ValueError`: If `circuit` has 0 qubits, already contains measurement operations, basis string length does not match qubit count, or an unsupported basis is given.
+- `ValueError`: If `circuit` has 0 qubits, already contains measurement operations, existing classical bits are insufficient for its qubits, basis string length does not match qubit count, or an unsupported basis is given.
 
 ---
 
