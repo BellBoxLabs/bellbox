@@ -363,9 +363,9 @@ class TestMeasureInBasis:
         qc = QuantumCircuit(2, 1)
 
         with pytest.raises(ValueError, match="1 classical bit for 2 qubits"):
-            measure_in_basis(qc, inplace=True)
+            measure_in_basis(qc, "X", inplace=True)
 
-        assert not any(inst.operation.name == "measure" for inst in qc.data)
+        assert qc.data == []
 
     def test_measurement_uses_qubit_indices_with_extra_classical_bits(self):
         """Extra classical bits are allowed and left unused by the identity mapping."""
