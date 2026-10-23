@@ -8,14 +8,6 @@ from qiskit import QuantumCircuit
 
 
 def phi_plus() -> QuantumCircuit:
-    r"""Construct the Bell state |\Phi^+> = 1/\sqrt{2} (|00> + |11>).
-
-    The circuit applies a Hadamard gate to qubit 0 followed by a CNOT (CX) gate
-    controlled on qubit 0 with target on qubit 1.
-
-    Returns:
-        QuantumCircuit: A 2-qubit circuit preparing |\Phi^+>.
-    """
     qc = QuantumCircuit(2, name="phi_plus")
     qc.h(0)
     qc.cx(0, 1)
